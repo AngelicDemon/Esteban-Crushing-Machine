@@ -163,7 +163,9 @@ void checkCombo(std::unordered_map<DWORD, bool> &keysPressed, DWORD key, bool do
 void unpressSimulatedKeys(std::unordered_map<DWORD, bool> &simulatedKeys){
     std::cout << "unpressSimulatedKeys() called\n";
     for(std::pair<DWORD, bool> key : simulatedKeys){
-        sendKeyState(key.first, false, simulatedKeys);
+        if(key.second){
+            sendKeyState(key.first, false, simulatedKeys);
+        }
     }
     std::cout << "unpressSimulatedKeys() end\n";
 }
@@ -184,6 +186,9 @@ LRESULT CALLBACK hotkeys(int ncode, WPARAM wparam, LPARAM lparam){
         /* Microsoft documentation says the given LPARAM is a pointer to
         a KBDLLHOOKSTRUCT so we cast it to one */
         KBDLLHOOKSTRUCT* input { (KBDLLHOOKSTRUCT*)lparam };
+
+        // Ignore simulated (injected) keys
+        if(input->flags & LLKHF_INJECTED) return CallNextHookEx(NULL, ncode, wparam, lparam);
         
         // Intercept Caps Lock
         if(input->vkCode == VK_CAPITAL){
