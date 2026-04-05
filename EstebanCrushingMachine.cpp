@@ -1,6 +1,7 @@
 #include <iostream>
 #include <windows.h>
 #include <unordered_map>
+#include <vector>
 
 
 // Print windows-based errors if needed
@@ -45,6 +46,30 @@ void sendKeyState(DWORD key, bool down, std::unordered_map<DWORD, bool> &simulat
     std::cout << "sendKeyState() end\n";
 }
 
+// Check the state of keys for a desired hotkey and send (un)presses based on it
+void checkState(bool down, DWORD targetKey, DWORD key, std::vector<DWORD> reqKeys, std::unordered_map<DWORD, bool> &simulatedKeys){
+    std::cout << "checkState() called\n";
+    
+    if(down){
+        std::cout << "+ Down state detected\t";
+        if(!simulatedKeys[targetKey]){
+            std::cout << "+ Key not already simulated\t";
+            sendKeyState(targetKey, down, simulatedKeys);
+        }
+    } else {
+        std::cout << "+ Down state not detected\t";
+        for(DWORD reqKey : reqKeys){
+            if(key == reqKey){
+                std::cout << "+ " << reqKey << " unpress detected\t";
+                sendKeyState(targetKey, down, simulatedKeys);
+                break;
+            }
+        }
+    }
+    
+    std::cout << "checkState() called\n";
+}
+
 // Check key combos for any desired combinations
 void checkCombo(std::unordered_map<DWORD, bool> &keysPressed, DWORD key, bool down, std::unordered_map<DWORD, bool> &simulatedKeys){
     std::cout << "checkCombo() called\n";
@@ -79,79 +104,26 @@ void checkCombo(std::unordered_map<DWORD, bool> &keysPressed, DWORD key, bool do
     */
 
     if(keysPressed[VK_LSHIFT] || keysPressed[VK_RSHIFT]){
-        bool keyIsShift{key == VK_LSHIFT || key == VK_RSHIFT};
         std::cout << "Shift detected\t";
         if(keysPressed['W']){ // Volume up
             std::cout << "+ W detected\t";
-            if(down){
-                std::cout << "+ Down state detected\t";
-                if(!simulatedKeys[VK_VOLUME_UP]){
-                    std::cout << "+ Key not already simulated\t";
-                    sendKeyState(VK_VOLUME_UP, down, simulatedKeys);
-                }
-            } else {
-                std::cout << "+ Down state not detected\t";
-                if(keyIsShift || key == 'W'){
-                    std::cout << "+ Shift or W unpress detected\t";
-                    sendKeyState(VK_VOLUME_UP, down, simulatedKeys);
-                }
-            }
+            checkState(down, VK_VOLUME_UP, key, {'W', VK_LSHIFT, VK_RSHIFT}, simulatedKeys);
         }
         std::cout << "\n";
         if(keysPressed['A']){ // Media prev
-            if(down){
-                if(!simulatedKeys[VK_MEDIA_PREV_TRACK]){
-                    sendKeyState(VK_MEDIA_PREV_TRACK, down, simulatedKeys);
-                }
-            } else {
-                if(keyIsShift || key == 'A'){
-                    sendKeyState(VK_MEDIA_PREV_TRACK, down, simulatedKeys);
-                }
-            }
+            checkState(down, VK_MEDIA_PREV_TRACK, key, {'A', VK_LSHIFT, VK_RSHIFT}, simulatedKeys);
         }
         if(keysPressed['R']){ // Volume down
-            if(down){
-                if(!simulatedKeys[VK_VOLUME_DOWN]){
-                    sendKeyState(VK_VOLUME_DOWN, down, simulatedKeys);
-                }
-            } else {
-                if(keyIsShift || key == 'R'){
-                    sendKeyState(VK_VOLUME_DOWN, down, simulatedKeys);
-                }
-            }
+            checkState(down, VK_VOLUME_DOWN, key, {'R', VK_LSHIFT, VK_RSHIFT}, simulatedKeys);
         }
         if(keysPressed['S']){ // Media next
-            if(down){
-                if(!simulatedKeys[VK_MEDIA_NEXT_TRACK]){
-                    sendKeyState(VK_MEDIA_NEXT_TRACK, down, simulatedKeys);
-                }
-            } else {
-                if(keyIsShift || key == 'S'){
-                    sendKeyState(VK_MEDIA_NEXT_TRACK, down, simulatedKeys);
-                }
-            }
+            checkState(down, VK_MEDIA_NEXT_TRACK, key, {'S', VK_LSHIFT, VK_RSHIFT}, simulatedKeys);
         }
         if(keysPressed['F']){ // Media play/pause
-            if(down){
-                if(!simulatedKeys[VK_MEDIA_PLAY_PAUSE]){
-                    sendKeyState(VK_MEDIA_PLAY_PAUSE, down, simulatedKeys);
-                }
-            } else {
-                if(keyIsShift || key == 'F'){
-                    sendKeyState(VK_MEDIA_PLAY_PAUSE, down, simulatedKeys);
-                }
-            }
+            checkState(down, VK_MEDIA_PLAY_PAUSE, key, {'F', VK_LSHIFT, VK_RSHIFT}, simulatedKeys);
         }
         if(keysPressed['Q']){ // Volume mute
-            if(down){
-                if(!simulatedKeys[VK_VOLUME_MUTE]){
-                    sendKeyState(VK_VOLUME_MUTE, down, simulatedKeys);
-                }
-            } else {
-                if(keyIsShift || key == 'Q'){
-                    sendKeyState(VK_VOLUME_MUTE, down, simulatedKeys);
-                }
-            }
+            checkState(down, VK_VOLUME_MUTE, key, {'Q', VK_LSHIFT, VK_RSHIFT}, simulatedKeys);
         }
     }
 
