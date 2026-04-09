@@ -66,8 +66,36 @@ void checkState(bool down, DWORD targetKey, DWORD key, std::vector<DWORD> reqKey
             }
         }
     }
+
+    std::cout << "checkState() end\n";
+}
+
+// Overload of checkState() to accept a vector of target keys
+void checkState(bool down, std::vector<DWORD> targetKeys, DWORD key, std::vector<DWORD> reqKeys, std::unordered_map<DWORD, bool> &simulatedKeys){
+    std::cout << "checkState() (overload) called\n";
     
-    std::cout << "checkState() called\n";
+    if(down){
+        std::cout << "+ Down state detected\t";
+        if(!simulatedKeys[targetKeys.back()]){ // Check if the last key in the list of target keys is being simulated. May or may not change this.
+            std::cout << "+ Key not already simulated\t";
+            for(DWORD targetKey : targetKeys){
+                sendKeyState(targetKey, down, simulatedKeys);
+            }
+        }
+    } else {
+        std::cout << "+ Down state not detected\t";
+        for(DWORD reqKey : reqKeys){
+            if(key == reqKey){
+                std::cout << "+ " << reqKey << " unpress detected\t";
+                for(DWORD targetKey : targetKeys){
+                    sendKeyState(targetKey, down, simulatedKeys);
+                }
+                break;
+            }
+        }
+    }
+    
+    std::cout << "checkState() (overload) end\n";
 }
 
 // Check key combos for any desired combinations
@@ -103,7 +131,7 @@ void checkCombo(std::unordered_map<DWORD, bool> &keysPressed, DWORD key, bool do
     +q::Volume_Mute
     */
 
-    if(keysPressed[VK_LSHIFT] || keysPressed[VK_RSHIFT]){
+    if(keysPressed[VK_LSHIFT] || keysPressed[VK_RSHIFT]){ // Shift keys
         std::cout << "Shift detected\t";
         if(keysPressed['W']){ // Volume up
             std::cout << "+ W detected\t";
@@ -124,6 +152,130 @@ void checkCombo(std::unordered_map<DWORD, bool> &keysPressed, DWORD key, bool do
         }
         if(keysPressed['Q']){ // Volume mute
             checkState(down, VK_VOLUME_MUTE, key, {'Q', VK_LSHIFT, VK_RSHIFT}, simulatedKeys);
+        }
+    } else { // Non-shift hotkeys
+        /*
+        ; right cluster
+        u::Up
+        n::Left
+        e::Down
+        i::Right
+        l::Home
+        y::End
+        `;::PgUp ; remap semi-colon
+        o::PgDn
+        '::insert ; remap single quote
+        h::PrintScreen
+        */
+        if(keysPressed['U']){ // Up
+            checkState(down, VK_UP, key, {'U'}, simulatedKeys);
+        }
+        if(keysPressed['N']){ // Left
+            checkState(down, VK_LEFT, key, {'N'}, simulatedKeys);
+        }
+        if(keysPressed['E']){ // Down
+            checkState(down, VK_DOWN, key, {'E'}, simulatedKeys);
+        }
+        if(keysPressed['I']){ // Right
+            checkState(down, VK_RIGHT, key, {'I'}, simulatedKeys);
+        }
+        if(keysPressed['L']){ // Home
+            checkState(down, VK_HOME, key, {'L'}, simulatedKeys);
+        }
+        if(keysPressed['Y']){ // End
+            checkState(down, VK_END, key, {'Y'}, simulatedKeys);
+        }
+        if(keysPressed[VK_OEM_1]){ // Page Up | VK_OEM_1 = Semicolon/Colon key
+            checkState(down, VK_PRIOR, key, {VK_OEM_1}, simulatedKeys);
+        }
+        if(keysPressed['O']){ // Page Down
+            checkState(down, VK_NEXT, key, {'O'}, simulatedKeys);
+        }
+        if(keysPressed[VK_OEM_7]){ // Insert | VK_OEM_7 = Apostrophe/Double Quotation Mark key
+            checkState(down, VK_INSERT, key, {VK_OEM_7}, simulatedKeys);
+        }
+        if(keysPressed['H']){ // Print Screen
+            checkState(down, VK_SNAPSHOT, key, {'H'}, simulatedKeys);
+        }
+        
+        /*
+        ; simplified left cluster
+        w::Up
+        a::Left
+        r::Down
+        s::Right
+        f::Enter
+        q::End
+        */
+        if(keysPressed['W']){ // Up
+            checkState(down, VK_UP, key, {'W'}, simulatedKeys);
+        }
+        if(keysPressed['A']){ // Left
+            checkState(down, VK_LEFT, key, {'A'}, simulatedKeys);
+        }
+        if(keysPressed['R']){ // Down
+            checkState(down, VK_DOWN, key, {'R'}, simulatedKeys);
+        }
+        if(keysPressed['S']){ // Right
+            checkState(down, VK_RIGHT, key, {'S'}, simulatedKeys);
+        }
+        if(keysPressed['F']){ // Enter
+            checkState(down, VK_RETURN, key, {'F'}, simulatedKeys);
+        }
+        if(keysPressed['Q']){ // End
+            checkState(down, VK_END, key, {'Q'}, simulatedKeys);
+        }
+
+        /*
+        ; function keys
+        1::F1
+        2::F2
+        3::F3
+        4::F4
+        5::F5
+        6::F6
+        7::F7
+        8::F8
+        9::F9
+        0::F10
+        -::F11
+        =::F12
+        */
+        if(keysPressed['1']){ // F1
+            checkState(down, VK_F1, key, {'1'}, simulatedKeys);
+        }
+        if(keysPressed['2']){ // F2
+            checkState(down, VK_F2, key, {'2'}, simulatedKeys);
+        }
+        if(keysPressed['3']){ // F3
+            checkState(down, VK_F3, key, {'3'}, simulatedKeys);
+        }
+        if(keysPressed['4']){ // F4
+            checkState(down, VK_F4, key, {'4'}, simulatedKeys);
+        }
+        if(keysPressed['5']){ // F5
+            checkState(down, VK_F5, key, {'5'}, simulatedKeys);
+        }
+        if(keysPressed['6']){ // F6
+            checkState(down, VK_F6, key, {'6'}, simulatedKeys);
+        }
+        if(keysPressed['7']){ // F7
+            checkState(down, VK_F7, key, {'7'}, simulatedKeys);
+        }
+        if(keysPressed['8']){ // F8
+            checkState(down, VK_F8, key, {'8'}, simulatedKeys);
+        }
+        if(keysPressed['9']){ // F9
+            checkState(down, VK_F9, key, {'9'}, simulatedKeys);
+        }
+        if(keysPressed['0']){ // F10
+            checkState(down, VK_F10, key, {'0'}, simulatedKeys);
+        }
+        if(keysPressed[VK_OEM_MINUS]){ // F11 | VK_OEM_MINUS = Dash/Underscore key
+            checkState(down, VK_F11, key, {VK_OEM_MINUS}, simulatedKeys);
+        }
+        if(keysPressed[VK_OEM_PLUS]){ // F12 | VK_OEM_PLUS = Equals/Plus key
+            checkState(down, VK_F12, key, {VK_OEM_PLUS}, simulatedKeys);
         }
     }
 
