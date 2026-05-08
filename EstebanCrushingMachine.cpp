@@ -46,6 +46,38 @@ void sendKeyState(DWORD key, bool down, std::unordered_map<DWORD, bool> &simulat
     std::cout << "sendKeyState() end\n";
 }
 
+// Overload of sendKeyState to accepted a vector of keys
+void sendKeyState(std::vector<DWORD> &keys, bool down, std::unordered_map<DWORD, bool> &simulatedKeys){
+    std::cout << "sendKeyState() (overload) called\n";
+
+    std::vector<INPUT> inputs;
+    for(DWORD key : keys){
+        INPUT input;
+        input.type = INPUT_KEYBOARD;
+        input.ki.wVk = static_cast<WORD>(key);
+        input.ki.dwFlags = down ? 0 : KEYEVENTF_KEYUP;
+
+        inputs.push_back(input);
+    }
+
+    UINT sent {SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT))};
+    if(sent == inputs.size()){
+        if(down){
+            for(DWORD key : keys){
+                simulatedKeys[key] = true;
+            }
+        } else {
+            for(DWORD key : keys){
+                simulatedKeys[key] = false;
+            }
+        }
+    } else {
+        std::cout << "Error on SendInput\n";
+        displayError(GetLastError());
+    }
+    std::cout << "sendKeyState() (overload) end\n";
+}
+
 // Check the state of keys for a desired hotkey and send (un)presses based on it
 void checkState(bool down, DWORD targetKey, DWORD key, std::vector<DWORD> reqKeys, std::unordered_map<DWORD, bool> &simulatedKeys){
     std::cout << "checkState() called\n";
@@ -78,18 +110,15 @@ void checkState(bool down, std::vector<DWORD> targetKeys, DWORD key, std::vector
         std::cout << "+ Down state detected\t";
         if(!simulatedKeys[targetKeys.back()]){ // Check if the last key in the list of target keys is being simulated. May or may not change this.
             std::cout << "+ Key not already simulated\t";
-            for(DWORD targetKey : targetKeys){
-                sendKeyState(targetKey, down, simulatedKeys);
-            }
+            sendKeyState(targetKeys, down, simulatedKeys);
         }
     } else {
         std::cout << "+ Down state not detected\t";
         for(DWORD reqKey : reqKeys){
             if(key == reqKey){
                 std::cout << "+ " << reqKey << " unpress detected\t";
-                for(DWORD targetKey : targetKeys){
-                    sendKeyState(targetKey, down, simulatedKeys);
-                }
+                sendKeyState(targetKeys, down, simulatedKeys);
+                
                 break;
             }
         }
@@ -129,9 +158,10 @@ void checkCombo(std::unordered_map<DWORD, bool> &keysPressed, DWORD key, bool do
     +s::Media_Next
     +f::Media_Play_Pause
     +q::Volume_Mute
+    +Esc::~
     */
 
-    if(keysPressed[VK_LSHIFT] || keysPressed[VK_RSHIFT]){ // Shift keys
+    if(keysPressed[VK_LSHIFT] || keysPressed[VK_RSHIFT]){ // Shift keys 
         std::cout << "Shift detected\t";
         if(keysPressed['W']){ // Volume up
             std::cout << "+ W detected\t";
@@ -152,6 +182,9 @@ void checkCombo(std::unordered_map<DWORD, bool> &keysPressed, DWORD key, bool do
         }
         if(keysPressed['Q']){ // Volume mute
             checkState(down, VK_VOLUME_MUTE, key, {'Q', VK_LSHIFT, VK_RSHIFT}, simulatedKeys);
+        }
+        if(keysPressed[VK_ESCAPE]){ // Tilde ~ | VK_OEM_3 = Tilde/Grave key`
+            checkState(down, {VK_LSHIFT, VK_OEM_3}, key, {VK_ESCAPE, VK_LSHIFT, VK_RSHIFT}, simulatedKeys);
         }
     } else { // Non-shift hotkeys
         /*
@@ -276,6 +309,21 @@ void checkCombo(std::unordered_map<DWORD, bool> &keysPressed, DWORD key, bool do
         }
         if(keysPressed[VK_OEM_PLUS]){ // F12 | VK_OEM_PLUS = Equals/Plus key
             checkState(down, VK_F12, key, {VK_OEM_PLUS}, simulatedKeys);
+        }
+
+        /*
+        ; send backtick
+        Esc::
+            Send, ``
+            return
+        
+        Backspace::Del
+        */
+        if(keysPressed[VK_ESCAPE]){ // Grave or backtick ` | VK_OEM_3 = Tilde/Grave key
+            checkState(down, VK_OEM_3, key, {VK_ESCAPE}, simulatedKeys);
+        }
+        if(keysPressed[VK_BACK]){ // Delete
+            checkState(down, VK_DELETE, key, {VK_BACK}, simulatedKeys);
         }
     }
 
