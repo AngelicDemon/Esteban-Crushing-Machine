@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <unordered_map>
 #include <vector>
+#include <set>
 
 
 // Print windows-based errors if needed
@@ -30,6 +31,12 @@ class Keyboard{
     static inline bool capsPressed; 
     static inline std::unordered_map<DWORD, bool> pressedKeys;
     static inline std::unordered_map<DWORD, bool> simulatedKeys;
+
+    struct Keybind{
+        std::set<DWORD> requiredKeys;
+        std::vector<DWORD> targetKeys;
+    };
+    static inline std::vector<Keybind> keybinds;
 
     // SendInput helper function
     static void sendKeyState(DWORD key, bool down){
@@ -157,183 +164,54 @@ class Keyboard{
         }
         std::cout << "Keys pressed after: " << num << "\n";
         
-
         /*
-        ; left media control layer while holding shift
-        +w::Volume_Up
-        +a::Media_Prev
-        +r::Volume_Down
-        +s::Media_Next
-        +f::Media_Play_Pause
-        +q::Volume_Mute
-        +Esc::~
-        */
-
         if(pressedKeys[VK_LSHIFT] || pressedKeys[VK_RSHIFT]){ // Shift keys 
             std::cout << "Shift detected\t";
             if(pressedKeys['W']){ // Volume up
                 std::cout << "+ W detected\t";
                 checkState(down, VK_VOLUME_UP, key, {'W', VK_LSHIFT, VK_RSHIFT});
             }
-            std::cout << "\n";
-            if(pressedKeys['A']){ // Media prev
-                checkState(down, VK_MEDIA_PREV_TRACK, key, {'A', VK_LSHIFT, VK_RSHIFT});
-            }
-            if(pressedKeys['R']){ // Volume down
-                checkState(down, VK_VOLUME_DOWN, key, {'R', VK_LSHIFT, VK_RSHIFT});
-            }
-            if(pressedKeys['S']){ // Media next
-                checkState(down, VK_MEDIA_NEXT_TRACK, key, {'S', VK_LSHIFT, VK_RSHIFT});
-            }
-            if(pressedKeys['F']){ // Media play/pause
-                checkState(down, VK_MEDIA_PLAY_PAUSE, key, {'F', VK_LSHIFT, VK_RSHIFT});
-            }
-            if(pressedKeys['Q']){ // Volume mute
-                checkState(down, VK_VOLUME_MUTE, key, {'Q', VK_LSHIFT, VK_RSHIFT});
-            }
-            if(pressedKeys[VK_ESCAPE]){ // Tilde ~ | VK_OEM_3 = Tilde/Grave key`
-                checkState(down, {VK_LSHIFT, VK_OEM_3}, key, {VK_ESCAPE, VK_LSHIFT, VK_RSHIFT});
-            }
-        } else { // Non-shift hotkeys
-            /*
-            ; right cluster
-            u::Up
-            n::Left
-            e::Down
-            i::Right
-            l::Home
-            y::End
-            `;::PgUp ; remap semi-colon
-            o::PgDn
-            '::insert ; remap single quote
-            h::PrintScreen
-            */
-            if(pressedKeys['U']){ // Up
-                checkState(down, VK_UP, key, {'U'});
-            }
-            if(pressedKeys['N']){ // Left
-                checkState(down, VK_LEFT, key, {'N'});
-            }
-            if(pressedKeys['E']){ // Down
-                checkState(down, VK_DOWN, key, {'E'});
-            }
-            if(pressedKeys['I']){ // Right
-                checkState(down, VK_RIGHT, key, {'I'});
-            }
-            if(pressedKeys['L']){ // Home
-                checkState(down, VK_HOME, key, {'L'});
-            }
-            if(pressedKeys['Y']){ // End
-                checkState(down, VK_END, key, {'Y'});
-            }
-            if(pressedKeys[VK_OEM_1]){ // Page Up | VK_OEM_1 = Semicolon/Colon key
-                checkState(down, VK_PRIOR, key, {VK_OEM_1});
-            }
-            if(pressedKeys['O']){ // Page Down
-                checkState(down, VK_NEXT, key, {'O'});
-            }
-            if(pressedKeys[VK_OEM_7]){ // Insert | VK_OEM_7 = Apostrophe/Double Quotation Mark key
-                checkState(down, VK_INSERT, key, {VK_OEM_7});
-            }
-            if(pressedKeys['H']){ // Print Screen
-                checkState(down, VK_SNAPSHOT, key, {'H'});
-            }
-            
-            /*
-            ; simplified left cluster
-            w::Up
-            a::Left
-            r::Down
-            s::Right
-            f::Enter
-            q::End
-            */
-            if(pressedKeys['W']){ // Up
-                checkState(down, VK_UP, key, {'W'});
-            }
-            if(pressedKeys['A']){ // Left
-                checkState(down, VK_LEFT, key, {'A'});
-            }
-            if(pressedKeys['R']){ // Down
-                checkState(down, VK_DOWN, key, {'R'});
-            }
-            if(pressedKeys['S']){ // Right
-                checkState(down, VK_RIGHT, key, {'S'});
-            }
-            if(pressedKeys['F']){ // Enter
-                checkState(down, VK_RETURN, key, {'F'});
-            }
-            if(pressedKeys['Q']){ // End
-                checkState(down, VK_END, key, {'Q'});
+        }
+        */
+
+
+        // Go through every keybind
+        for(Keybind keybind : keybinds){
+            bool active{};
+            const std::set<DWORD> &reqKeys{keybind.requiredKeys}; // Alias to shorten name
+            // size_t keyCount{}; // Tracking number of matching keys
+
+            // If the key is needed in a specific keybind
+            if(reqKeys.count(key)){
+                // Modifier for both being activated by either shift key
+                bool bothShifts{static_cast<bool>(reqKeys.count(VK_SHIFT))};
+
+                // Ignore keybind if shift is held and keybind doesn't require it
+                bool shiftHeld{pressedKeys[VK_LSHIFT] || pressedKeys[VK_RSHIFT]};
+                bool shiftRequired{bothShifts || reqKeys.count(VK_LSHIFT) || reqKeys.count(VK_RSHIFT)};
+                if((shiftRequired && !shiftHeld) || (shiftHeld && !shiftRequired)) continue;
+
+
+                // Check pressed keys for required keys
+                for(DWORD reqKey : reqKeys){
+                    if(pressedKeys[reqKey] || (reqKey == VK_SHIFT && shiftHeld)){
+                        active = true;
+                    } else {
+                        active = false;
+                    }
+                }
             }
 
-            /*
-            ; function keys
-            1::F1
-            2::F2
-            3::F3
-            4::F4
-            5::F5
-            6::F6
-            7::F7
-            8::F8
-            9::F9
-            0::F10
-            -::F11
-            =::F12
-            */
-            if(pressedKeys['1']){ // F1
-                checkState(down, VK_F1, key, {'1'});
-            }
-            if(pressedKeys['2']){ // F2
-                checkState(down, VK_F2, key, {'2'});
-            }
-            if(pressedKeys['3']){ // F3
-                checkState(down, VK_F3, key, {'3'});
-            }
-            if(pressedKeys['4']){ // F4
-                checkState(down, VK_F4, key, {'4'});
-            }
-            if(pressedKeys['5']){ // F5
-                checkState(down, VK_F5, key, {'5'});
-            }
-            if(pressedKeys['6']){ // F6
-                checkState(down, VK_F6, key, {'6'});
-            }
-            if(pressedKeys['7']){ // F7
-                checkState(down, VK_F7, key, {'7'});
-            }
-            if(pressedKeys['8']){ // F8
-                checkState(down, VK_F8, key, {'8'});
-            }
-            if(pressedKeys['9']){ // F9
-                checkState(down, VK_F9, key, {'9'});
-            }
-            if(pressedKeys['0']){ // F10
-                checkState(down, VK_F10, key, {'0'});
-            }
-            if(pressedKeys[VK_OEM_MINUS]){ // F11 | VK_OEM_MINUS = Dash/Underscore key
-                checkState(down, VK_F11, key, {VK_OEM_MINUS});
-            }
-            if(pressedKeys[VK_OEM_PLUS]){ // F12 | VK_OEM_PLUS = Equals/Plus key
-                checkState(down, VK_F12, key, {VK_OEM_PLUS});
-            }
-
-            /*
-            ; send backtick
-            Esc::
-                Send, ``
-                return
-            
-            Backspace::Del
-            */
-            if(pressedKeys[VK_ESCAPE]){ // Grave or backtick ` | VK_OEM_3 = Tilde/Grave key
-                checkState(down, VK_OEM_3, key, {VK_ESCAPE});
-            }
-            if(pressedKeys[VK_BACK]){ // Delete
-                checkState(down, VK_DELETE, key, {VK_BACK});
+            if(active){
+                std::cout << "ACTIVE KEYBIND\t";
+                for(DWORD key : reqKeys){
+                    std::cout << key << "\t";
+                }
+                if(down) std::cout << "ON"; else std::cout << "OFF";
+                std::cout << "\n";
             }
         }
+        
 
         if(!down) pressedKeys[key] = false;
         std::cout << "checkCombo() end\n";
@@ -419,6 +297,33 @@ class Keyboard{
     bool checkHook(){ // Check if the hook is installed
         return hHook != NULL;
     }
+    
+    void addKeybind(std::vector<DWORD> reqKeys, std::vector<DWORD> tarKeys){
+        std::set<DWORD> tempSet(reqKeys.begin(), reqKeys.end());
+
+        Keybind keybind{tempSet, tarKeys};
+        keybinds.push_back(keybind);
+    }
+    void addKeybind(DWORD reqKey, std::vector<DWORD> tarKeys){
+        std::set<DWORD> tempSet{reqKey};
+
+        Keybind keybind{tempSet, tarKeys};
+        keybinds.push_back(keybind);
+    }
+    void addKeybind(DWORD reqKey, DWORD tarKey){
+        std::set<DWORD> tempSet{reqKey};
+        std::vector<DWORD> tempVec{tarKey};
+
+        Keybind keybind{tempSet, tempVec};
+        keybinds.push_back(keybind);
+    }
+    void addKeybind(std::vector<DWORD> reqKeys, DWORD tarKey){
+        std::set<DWORD> tempSet(reqKeys.begin(), reqKeys.end());
+        std::vector<DWORD> tempVec{tarKey};
+        
+        Keybind keybind{tempSet, tempVec};
+        keybinds.push_back(keybind);
+    }
 };
 
 
@@ -426,6 +331,104 @@ class Keyboard{
 
 int main(){
     Keyboard hook;
+    /*
+    ; left media control layer while holding shift
+    +w::Volume_Up
+    +a::Media_Prev
+    +r::Volume_Down
+    +s::Media_Next
+    +f::Media_Play_Pause
+    +q::Volume_Mute
+    +Esc::~
+    */
+    hook.addKeybind({VK_SHIFT, 'W'}, VK_VOLUME_UP); // Volume Up
+    hook.addKeybind({VK_SHIFT, 'A'}, VK_MEDIA_PREV_TRACK); // Media Prev
+    hook.addKeybind({VK_SHIFT, 'R'}, VK_VOLUME_DOWN); // Volume Down
+    hook.addKeybind({VK_SHIFT, 'S'}, VK_MEDIA_NEXT_TRACK); // Media Next
+    hook.addKeybind({VK_SHIFT, 'F'}, VK_MEDIA_PLAY_PAUSE); // Media Play/Pause
+    hook.addKeybind({VK_SHIFT, 'Q'}, VK_VOLUME_MUTE); // Volume Mute
+    hook.addKeybind({VK_SHIFT, VK_ESCAPE}, {VK_LSHIFT, VK_OEM_3}); // Tilde ~ | VK_OEM_3 = Tilde/Grave key
+    
+    /*
+    ; right cluster
+    u::Up
+    n::Left
+    e::Down
+    i::Right
+    l::Home
+    y::End
+    `;::PgUp ; remap semi-colon
+    o::PgDn
+    '::insert ; remap single quote
+    h::PrintScreen
+    */
+    hook.addKeybind('U', VK_UP); // Up
+    hook.addKeybind('N', VK_LEFT); // Left
+    hook.addKeybind('E', VK_DOWN); // Down
+    hook.addKeybind('I', VK_RIGHT); // Right
+    hook.addKeybind('L', VK_HOME); // Home
+    hook.addKeybind('Y', VK_END); // End
+    hook.addKeybind(VK_OEM_1, VK_PRIOR); // Page Up | VK_OEM_1 = Semicolon/Colon key
+    hook.addKeybind('O', VK_NEXT); // Page Down
+    hook.addKeybind(VK_OEM_7, VK_INSERT); // Insert | VK_OEM_7 = Apostrophe/Double Quotation Mark key
+    hook.addKeybind('H', VK_SNAPSHOT); // Print Screen
+    
+    /*
+    ; simplified left cluster
+    w::Up
+    a::Left
+    r::Down
+    s::Right
+    f::Enter
+    q::End
+    */
+    hook.addKeybind('W', VK_UP); // Up
+    hook.addKeybind('A', VK_LEFT); // Left
+    hook.addKeybind('R', VK_DOWN); // Down
+    hook.addKeybind('S', VK_RIGHT); // Right
+    hook.addKeybind('F', VK_RETURN); // Enter
+    hook.addKeybind('Q', VK_END);
+
+    /*
+    ; function keys
+    1::F1
+    2::F2
+    3::F3
+    4::F4
+    5::F5
+    6::F6
+    7::F7
+    8::F8
+    9::F9
+    0::F10
+    -::F11
+    =::F12
+    */
+    hook.addKeybind('1', VK_F1); // F1
+    hook.addKeybind('2', VK_F2); // F2
+    hook.addKeybind('3', VK_F3); // F3
+    hook.addKeybind('4', VK_F4); // F4
+    hook.addKeybind('5', VK_F5); // F5
+    hook.addKeybind('6', VK_F6); // F6
+    hook.addKeybind('7', VK_F7); // F7
+    hook.addKeybind('8', VK_F8); // F8
+    hook.addKeybind('9', VK_F9); // F9
+    hook.addKeybind('0', VK_F10); // F10
+    hook.addKeybind(VK_OEM_MINUS, VK_F11); // F11 | VK_OEM_MINUS = Dash/Underscore key
+    hook.addKeybind(VK_OEM_PLUS, VK_F12); // F12 | VK_OEM_PLUS = Equals/Plus key
+    
+    /*
+    ; send backtick
+    Esc::
+        Send, ``
+        return
+    
+    Backspace::Del
+    */
+    hook.addKeybind(VK_ESCAPE, VK_OEM_3); // Grave or backtick ` | VK_OEM_3 = Tilde/Grave key
+    hook.addKeybind(VK_BACK, VK_DELETE); // Delete
+
+
     if (!hook.checkHook()) return 1; // Exit abnormally on failure to hook keyboard
     
     MSG msg;
