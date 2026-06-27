@@ -2,8 +2,6 @@
 #include <windows.h>
 #include <unordered_map>
 #include <vector>
-#include <set>
-
 
 // Print windows-based errors if needed
 void displayError(DWORD dw){
@@ -33,33 +31,10 @@ class Keyboard{
     static inline std::unordered_map<DWORD, bool> simulatedKeys;
 
     struct Keybind{
-        std::set<DWORD> requiredKeys;
         std::vector<DWORD> targetKeys;
+        bool shift;
     };
-    static inline std::vector<Keybind> keybinds;
-
-    // SendInput helper function
-    static void sendKeyState(DWORD key, bool down){
-        std::cout << "sendKeyState() called\n";
-
-        INPUT input{};
-        input.type = INPUT_KEYBOARD;
-        input.ki.wVk = static_cast<WORD>(key);
-        input.ki.dwFlags = down ? 0 : KEYEVENTF_KEYUP;
-
-        UINT sent {SendInput(1, &input, sizeof(INPUT))};
-        if(sent == 1){
-            if(down){
-                simulatedKeys[key] = true;
-            } else {
-                simulatedKeys[key] = false;
-            }
-        } else {
-            std::cout << "Error on SendInput\n";
-            displayError(GetLastError());
-        }
-        std::cout << "sendKeyState() end\n";
-    }
+    static inline std::unordered_multimap<DWORD, Keybind> keybinds;
 
     // Overload of sendKeyState to accepted a vector of keys
     static void sendKeyState(std::vector<DWORD> &keys, bool down){
@@ -93,32 +68,9 @@ class Keyboard{
         std::cout << "sendKeyState() (overload) end\n";
     }
 
-    // Check the state of keys for a desired hotkey and send (un)presses based on it
-    static void checkState(bool down, DWORD targetKey, DWORD key, std::vector<DWORD> reqKeys){
-        std::cout << "checkState() called\n";
-        
-        if(down){
-            std::cout << "+ Down state detected\t";
-            if(!simulatedKeys[targetKey]){
-                std::cout << "+ Key not already simulated\t";
-                sendKeyState(targetKey, down);
-            }
-        } else {
-            std::cout << "+ Down state not detected\t";
-            for(DWORD reqKey : reqKeys){
-                if(key == reqKey){
-                    std::cout << "+ " << reqKey << " unpress detected\t";
-                    sendKeyState(targetKey, down);
-                    break;
-                }
-            }
-        }
-
-        std::cout << "checkState() end\n";
-    }
 
     // Overload of checkState() to accept a vector of target keys
-    static void checkState(bool down, std::vector<DWORD> targetKeys, DWORD key, std::vector<DWORD> reqKeys){
+    static void checkState(bool down, std::vector<DWORD> targetKeys){
         std::cout << "checkState() (overload) called\n";
         
         if(down){
@@ -129,14 +81,8 @@ class Keyboard{
             }
         } else {
             std::cout << "+ Down state not detected\t";
-            for(DWORD reqKey : reqKeys){
-                if(key == reqKey){
-                    std::cout << "+ " << reqKey << " unpress detected\t";
-                    sendKeyState(targetKeys, down);
-                    
-                    break;
-                }
-            }
+            //std::cout << "+ " << reqKey << " unpress detected\t";
+            sendKeyState(targetKeys, down);
         }
         
         std::cout << "checkState() (overload) end\n";
@@ -146,85 +92,33 @@ class Keyboard{
     static void checkCombo(DWORD key, bool down){
         std::cout << "checkCombo() called\n";
         
-        int num{};
-        for(auto key : pressedKeys){
-            if(key.second){
-                ++num;
-            };
-        }
-        std::cout << "Keys pressed before: " << num << "\n";
-
-        if(down) pressedKeys[key] = true;
-
-        num = 0;
-        for(auto key : pressedKeys){
-            if(key.second){
-                ++num;
-            };
-        }
-        std::cout << "Keys pressed after: " << num << "\n";
+        // Get shift state.
+        bool shiftDown {GetAsyncKeyState(VK_SHIFT) < 0};
+        if(shiftDown) std::cout << "Shift reported down\n"; else std::cout << "Shift reported up\n";
         
-        /*
-        if(pressedKeys[VK_LSHIFT] || pressedKeys[VK_RSHIFT]){ // Shift keys 
-            std::cout << "Shift detected\t";
-            if(pressedKeys['W']){ // Volume up
-                std::cout << "+ W detected\t";
-                checkState(down, VK_VOLUME_UP, key, {'W', VK_LSHIFT, VK_RSHIFT});
+        // Get a list of keybinds for (un)pressed key
+        auto range{keybinds.equal_range(key)};
+        for(auto it = range.first; it != range.second; ++it){
+            const Keybind& keybind{it->second};
+
+            if(!down || shiftDown == keybind.shift){
+                checkState(down, keybind.targetKeys);
             }
         }
-        */
 
-
-        // Go through every keybind
-        for(Keybind keybind : keybinds){
-            bool active{};
-            const std::set<DWORD> &reqKeys{keybind.requiredKeys}; // Alias to shorten name
-            // size_t keyCount{}; // Tracking number of matching keys
-
-            // If the key is needed in a specific keybind
-            if(reqKeys.count(key)){
-                // Modifier for both being activated by either shift key
-                bool bothShifts{static_cast<bool>(reqKeys.count(VK_SHIFT))};
-
-                // Ignore keybind if shift is held and keybind doesn't require it
-                bool shiftHeld{pressedKeys[VK_LSHIFT] || pressedKeys[VK_RSHIFT]};
-                bool shiftRequired{bothShifts || reqKeys.count(VK_LSHIFT) || reqKeys.count(VK_RSHIFT)};
-                if((shiftRequired && !shiftHeld) || (shiftHeld && !shiftRequired)) continue;
-
-
-                // Check pressed keys for required keys
-                for(DWORD reqKey : reqKeys){
-                    if(pressedKeys[reqKey] || (reqKey == VK_SHIFT && shiftHeld)){
-                        active = true;
-                    } else {
-                        active = false;
-                    }
-                }
-            }
-
-            if(active){
-                std::cout << "ACTIVE KEYBIND\t";
-                for(DWORD key : reqKeys){
-                    std::cout << key << "\t";
-                }
-                if(down) std::cout << "ON"; else std::cout << "OFF";
-                std::cout << "\n";
-            }
-        }
-        
-
-        if(!down) pressedKeys[key] = false;
         std::cout << "checkCombo() end\n";
     }
 
 
     static void unpressSimulatedKeys(){
         std::cout << "unpressSimulatedKeys() called\n";
+
+        std::vector<DWORD> temp;
         for(std::pair<DWORD, bool> key : simulatedKeys){
-            if(key.second){
-                sendKeyState(key.first, false);
-            }
+                temp.push_back(key.first);
         }
+        sendKeyState(temp, false);
+
         std::cout << "unpressSimulatedKeys() end\n";
     }
 
@@ -252,7 +146,6 @@ class Keyboard{
                 if(wparam == WM_KEYUP){
                     std::cout << "Caps up\n";
                     unpressSimulatedKeys();
-                    pressedKeys.clear();
                     simulatedKeys.clear();
                     capsPressed = false;
                     return 1;
@@ -262,13 +155,17 @@ class Keyboard{
             // Caps modifier
             if(capsPressed && (wparam == WM_KEYDOWN || wparam == WM_SYSKEYDOWN)){
                 std::cout << "Key " << input->vkCode << " pressed with caps down\n";
-                checkCombo(input->vkCode, true);
-                return 1;
+                if(keybinds.count(input->vkCode)){
+                    checkCombo(input->vkCode, true);
+                    return 1;
+                }
             }
             if(capsPressed && (wparam == WM_KEYUP || wparam == WM_SYSKEYUP)){
                 std::cout << "Key " << input->vkCode << " unpressed with caps down\n";
-                checkCombo(input->vkCode, false);
-                return 1;
+                if(keybinds.count(input->vkCode)){
+                    checkCombo(input->vkCode, false);
+                    return 1;
+                }
             }
         }
 
@@ -298,31 +195,16 @@ class Keyboard{
         return hHook != NULL;
     }
     
-    void addKeybind(std::vector<DWORD> reqKeys, std::vector<DWORD> tarKeys){
-        std::set<DWORD> tempSet(reqKeys.begin(), reqKeys.end());
-
-        Keybind keybind{tempSet, tarKeys};
-        keybinds.push_back(keybind);
-    }
-    void addKeybind(DWORD reqKey, std::vector<DWORD> tarKeys){
-        std::set<DWORD> tempSet{reqKey};
-
-        Keybind keybind{tempSet, tarKeys};
-        keybinds.push_back(keybind);
-    }
-    void addKeybind(DWORD reqKey, DWORD tarKey){
-        std::set<DWORD> tempSet{reqKey};
-        std::vector<DWORD> tempVec{tarKey};
-
-        Keybind keybind{tempSet, tempVec};
-        keybinds.push_back(keybind);
-    }
-    void addKeybind(std::vector<DWORD> reqKeys, DWORD tarKey){
-        std::set<DWORD> tempSet(reqKeys.begin(), reqKeys.end());
-        std::vector<DWORD> tempVec{tarKey};
+    void addKeybind(DWORD reqKey, std::vector<DWORD> tarKeys, bool shift = false){
+        Keybind keybind{tarKeys, shift};
         
-        Keybind keybind{tempSet, tempVec};
-        keybinds.push_back(keybind);
+        keybinds.insert({reqKey, keybind});
+    }
+    void addKeybind(DWORD reqKey, DWORD tarKey, bool shift = false){
+        std::vector<DWORD> tempVec{tarKey};
+        Keybind keybind{tempVec, shift};
+
+        keybinds.insert({reqKey, keybind});
     }
 };
 
@@ -341,13 +223,13 @@ int main(){
     +q::Volume_Mute
     +Esc::~
     */
-    hook.addKeybind({VK_SHIFT, 'W'}, VK_VOLUME_UP); // Volume Up
-    hook.addKeybind({VK_SHIFT, 'A'}, VK_MEDIA_PREV_TRACK); // Media Prev
-    hook.addKeybind({VK_SHIFT, 'R'}, VK_VOLUME_DOWN); // Volume Down
-    hook.addKeybind({VK_SHIFT, 'S'}, VK_MEDIA_NEXT_TRACK); // Media Next
-    hook.addKeybind({VK_SHIFT, 'F'}, VK_MEDIA_PLAY_PAUSE); // Media Play/Pause
-    hook.addKeybind({VK_SHIFT, 'Q'}, VK_VOLUME_MUTE); // Volume Mute
-    hook.addKeybind({VK_SHIFT, VK_ESCAPE}, {VK_LSHIFT, VK_OEM_3}); // Tilde ~ | VK_OEM_3 = Tilde/Grave key
+    hook.addKeybind('W', VK_VOLUME_UP, true); // Volume Up
+    hook.addKeybind('A', VK_MEDIA_PREV_TRACK, true); // Media Prev
+    hook.addKeybind('R', VK_VOLUME_DOWN, true); // Volume Down
+    hook.addKeybind('S', VK_MEDIA_NEXT_TRACK, true); // Media Next
+    hook.addKeybind('F', VK_MEDIA_PLAY_PAUSE, true); // Media Play/Pause
+    hook.addKeybind('Q', VK_VOLUME_MUTE, true); // Volume Mute
+    hook.addKeybind(VK_ESCAPE, {VK_LSHIFT, VK_OEM_3}, true); // Tilde ~ | VK_OEM_3 = Tilde/Grave key
     
     /*
     ; right cluster
