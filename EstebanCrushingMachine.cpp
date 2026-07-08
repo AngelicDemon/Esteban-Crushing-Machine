@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <unordered_map>
 #include <vector>
+#include <algorithm>
 
 // Print windows-based errors if needed
 void displayError(DWORD dw){
@@ -27,17 +28,31 @@ void displayError(DWORD dw){
 class Keyboard{
     // Static lifetime variables for tracking between functions
     static inline bool capsPressed; 
-    static inline std::unordered_map<DWORD, bool> pressedKeys;
-    static inline std::unordered_map<DWORD, bool> simulatedKeys;
 
     struct Keybind{
         std::vector<DWORD> targetKeys;
         bool shift;
+
+        bool operator==(const Keybind &X){
+            if((this->targetKeys.size() != X.targetKeys.size()) || (this->shift != X.shift)) return false;
+
+            std::vector<DWORD> tempThis{this->targetKeys};
+            std::vector<DWORD> tempX{X.targetKeys};
+        
+            std::sort(tempThis.begin(), tempThis.end());
+            std::sort(tempX.begin(), tempX.end());
+
+            return tempThis == tempX;
+        }
+        bool operator!=(const Keybind &X){
+            return !(*this==X);
+        }
     };
     static inline std::unordered_multimap<DWORD, Keybind> keybinds;
+    static inline std::unordered_multimap<DWORD, Keybind> simulatedKeys;
 
     // Overload of sendKeyState to accepted a vector of keys
-    static void sendKeyState(std::vector<DWORD> &keys, bool down){
+    static void sendKeyState(const std::vector<DWORD> &keys, bool down){
         std::cout << "sendKeyState() (overload) called\n";
 
         std::vector<INPUT> inputs;
@@ -51,17 +66,7 @@ class Keyboard{
         }
 
         UINT sent {SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT))};
-        if(sent == inputs.size()){
-            if(down){
-                for(DWORD key : keys){
-                    simulatedKeys[key] = true;
-                }
-            } else {
-                for(DWORD key : keys){
-                    simulatedKeys[key] = false;
-                }
-            }
-        } else {
+        if(!(sent == inputs.size())){
             std::cout << "Error on SendInput\n";
             displayError(GetLastError());
         }
@@ -70,19 +75,31 @@ class Keyboard{
 
 
     // Overload of checkState() to accept a vector of target keys
-    static void checkState(bool down, std::vector<DWORD> targetKeys){
+    static void checkState(bool down, const Keybind &keybind, DWORD key){
         std::cout << "checkState() (overload) called\n";
         
         if(down){
             std::cout << "+ Down state detected\t";
-            if(!simulatedKeys[targetKeys.back()]){ // Check if the last key in the list of target keys is being simulated. May or may not change this.
-                std::cout << "+ Key not already simulated\t";
-                sendKeyState(targetKeys, down);
+            bool sendKeys{true};
+
+            auto range{simulatedKeys.equal_range(key)};
+            for(auto it = range.first; it != range.second; ++it){
+                if(it->second == keybind){
+                    sendKeys = false;
+                }
+            }
+            if(sendKeys){
+                sendKeyState(keybind.targetKeys, down);
+                simulatedKeys.insert({key, keybind});
             }
         } else {
             std::cout << "+ Down state not detected\t";
-            //std::cout << "+ " << reqKey << " unpress detected\t";
-            sendKeyState(targetKeys, down);
+            
+            auto range{simulatedKeys.equal_range(key)};
+            for(auto it = range.first; it != range.second; ++it){
+                if(it->second == keybind) simulatedKeys.erase(it);
+            }
+            sendKeyState(keybind.targetKeys, down);
         }
         
         std::cout << "checkState() (overload) end\n";
@@ -102,7 +119,7 @@ class Keyboard{
             const Keybind& keybind{it->second};
 
             if(!down || shiftDown == keybind.shift){
-                checkState(down, keybind.targetKeys);
+                checkState(down, keybind, key);
             }
         }
 
@@ -110,14 +127,14 @@ class Keyboard{
     }
 
 
-    static void unpressSimulatedKeys(){
+    static void unpressSimulatedKeys(DWORD key){
         std::cout << "unpressSimulatedKeys() called\n";
 
-        std::vector<DWORD> temp;
-        for(std::pair<DWORD, bool> key : simulatedKeys){
-                temp.push_back(key.first);
+        auto range{simulatedKeys.equal_range(key)};
+        for(auto it = range.first; it != range.second; ++it){
+            sendKeyState(it->second.targetKeys, false);
         }
-        sendKeyState(temp, false);
+        simulatedKeys.erase(key);
 
         std::cout << "unpressSimulatedKeys() end\n";
     }
@@ -145,8 +162,6 @@ class Keyboard{
                 }
                 if(wparam == WM_KEYUP){
                     std::cout << "Caps up\n";
-                    unpressSimulatedKeys();
-                    simulatedKeys.clear();
                     capsPressed = false;
                     return 1;
                 }
@@ -166,6 +181,16 @@ class Keyboard{
                     checkCombo(input->vkCode, false);
                     return 1;
                 }
+            }
+
+            // Unpress keybind without caps logic
+            if((wparam == WM_KEYUP || wparam == WM_SYSKEYUP) && simulatedKeys.count(input->vkCode)){
+                unpressSimulatedKeys(input->vkCode);
+                return 1;
+            }
+            if((wparam == WM_KEYDOWN || wparam == WM_SYSKEYDOWN) && simulatedKeys.count(input->vkCode)){
+                
+                return 1;
             }
         }
 
