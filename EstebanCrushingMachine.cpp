@@ -32,6 +32,7 @@ class Keyboard{
     struct Keybind{
         std::vector<DWORD> targetKeys;
         bool shift;
+        bool strict;
 
         bool operator==(const Keybind &X){
             if((this->targetKeys.size() != X.targetKeys.size()) || (this->shift != X.shift)) return false;
@@ -106,11 +107,14 @@ class Keyboard{
     }
 
     // Check key combos for any desired combinations
-    static void checkCombo(DWORD key, bool down){
+    static int checkCombo(DWORD key, bool down){
         std::cout << "checkCombo() called\n";
         
         // Get shift state.
-        bool shiftDown {GetAsyncKeyState(VK_SHIFT) < 0};
+        bool shiftDown{GetAsyncKeyState(VK_SHIFT) < 0};
+
+        int count{};
+
         if(shiftDown) std::cout << "Shift reported down\n"; else std::cout << "Shift reported up\n";
         
         // Get a list of keybinds for (un)pressed key
@@ -118,12 +122,14 @@ class Keyboard{
         for(auto it = range.first; it != range.second; ++it){
             const Keybind& keybind{it->second};
 
-            if(!down || shiftDown == keybind.shift){
+            if(!down || shiftDown == keybind.shift || !keybind.strict){
                 checkState(down, keybind, key);
+                ++count;
             }
         }
 
         std::cout << "checkCombo() end\n";
+        return count;
     }
 
 
@@ -152,9 +158,11 @@ class Keyboard{
 
             // Ignore simulated (injected) keys
             if(input->flags & LLKHF_INJECTED) return CallNextHookEx(NULL, ncode, wparam, lparam);
+
+            DWORD vkCode{input->vkCode};
             
             // Intercept Caps Lock
-            if(input->vkCode == VK_CAPITAL){
+            if(vkCode == VK_CAPITAL){
                 if(wparam == WM_KEYDOWN){
                     std::cout << "Caps down\n";
                     capsPressed = true;
@@ -168,27 +176,29 @@ class Keyboard{
             }
 
             // Caps modifier
-            if(capsPressed && (wparam == WM_KEYDOWN || wparam == WM_SYSKEYDOWN)){
-                std::cout << "Key " << input->vkCode << " pressed with caps down\n";
-                if(keybinds.count(input->vkCode)){
-                    checkCombo(input->vkCode, true);
-                    return 1;
+            if(capsPressed){
+                size_t count{keybinds.count(vkCode)};
+
+                if(wparam == WM_KEYDOWN || wparam == WM_SYSKEYDOWN){
+                    std::cout << "Key " << vkCode << " pressed with caps down\n";
+                    if(count){
+                        return checkCombo(vkCode, true);
+                    }
                 }
-            }
-            if(capsPressed && (wparam == WM_KEYUP || wparam == WM_SYSKEYUP)){
-                std::cout << "Key " << input->vkCode << " unpressed with caps down\n";
-                if(keybinds.count(input->vkCode)){
-                    checkCombo(input->vkCode, false);
-                    return 1;
+                else if(wparam == WM_KEYUP || wparam == WM_SYSKEYUP){
+                    std::cout << "Key " << vkCode << " unpressed with caps down\n";
+                    if(count){
+                        return checkCombo(vkCode, false);
+                    }
                 }
             }
 
             // Unpress keybind without caps logic
-            if((wparam == WM_KEYUP || wparam == WM_SYSKEYUP) && simulatedKeys.count(input->vkCode)){
+            if((wparam == WM_KEYUP || wparam == WM_SYSKEYUP) && simulatedKeys.count(vkCode)){
                 unpressSimulatedKeys(input->vkCode);
                 return 1;
             }
-            if((wparam == WM_KEYDOWN || wparam == WM_SYSKEYDOWN) && simulatedKeys.count(input->vkCode)){
+            if((wparam == WM_KEYDOWN || wparam == WM_SYSKEYDOWN) && simulatedKeys.count(vkCode)){
                 
                 return 1;
             }
@@ -220,14 +230,14 @@ class Keyboard{
         return hHook != NULL;
     }
     
-    void addKeybind(DWORD reqKey, std::vector<DWORD> tarKeys, bool shift = false){
-        Keybind keybind{tarKeys, shift};
+    void addKeybind(DWORD reqKey, std::vector<DWORD> tarKeys, bool shift = false, bool strict = true){
+        Keybind keybind{tarKeys, shift, strict};
         
         keybinds.insert({reqKey, keybind});
     }
-    void addKeybind(DWORD reqKey, DWORD tarKey, bool shift = false){
+    void addKeybind(DWORD reqKey, DWORD tarKey, bool shift = false, bool strict = true){
         std::vector<DWORD> tempVec{tarKey};
-        Keybind keybind{tempVec, shift};
+        Keybind keybind{tempVec, shift, strict};
 
         keybinds.insert({reqKey, keybind});
     }
@@ -269,10 +279,10 @@ int main(){
     '::insert ; remap single quote
     h::PrintScreen
     */
-    hook.addKeybind('U', VK_UP); // Up
-    hook.addKeybind('N', VK_LEFT); // Left
-    hook.addKeybind('E', VK_DOWN); // Down
-    hook.addKeybind('I', VK_RIGHT); // Right
+    hook.addKeybind('U', VK_UP, false, false); // Up
+    hook.addKeybind('N', VK_LEFT, false, false); // Left
+    hook.addKeybind('E', VK_DOWN, false, false); // Down
+    hook.addKeybind('I', VK_RIGHT, false, false); // Right
     hook.addKeybind('L', VK_HOME); // Home
     hook.addKeybind('Y', VK_END); // End
     hook.addKeybind(VK_OEM_1, VK_PRIOR); // Page Up | VK_OEM_1 = Semicolon/Colon key
