@@ -62,7 +62,17 @@ class Keyboard{
             input.type = INPUT_KEYBOARD;
             input.ki.wVk = static_cast<WORD>(key);
             input.ki.dwFlags = down ? 0 : KEYEVENTF_KEYUP;
-
+            switch(key){
+                case VK_UP:
+                case VK_LEFT:
+                case VK_DOWN:
+                case VK_RIGHT:
+                case VK_HOME:
+                case VK_END:
+                case VK_PRIOR:
+                case VK_NEXT:
+                    input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+            }
             inputs.push_back(input);
         }
 
