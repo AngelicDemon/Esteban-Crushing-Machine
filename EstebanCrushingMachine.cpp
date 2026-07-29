@@ -91,18 +91,18 @@ class Keyboard{
         
         if(down){
             std::cout << "+ Down state detected\t";
-            bool sendKeys{true};
+            bool addKeybind{true};
 
             auto range{simulatedKeys.equal_range(key)};
             for(auto it = range.first; it != range.second; ++it){
                 if(it->second == keybind){
-                    sendKeys = false;
+                    addKeybind = false;
                 }
             }
-            if(sendKeys){
-                sendKeyState(keybind.targetKeys, down);
-                simulatedKeys.insert({key, keybind});
-            }
+
+            sendKeyState(keybind.targetKeys, down);
+            if(addKeybind) simulatedKeys.insert({key, keybind});
+            
         } else {
             std::cout << "+ Down state not detected\t";
             
@@ -130,7 +130,7 @@ class Keyboard{
         // Get a list of keybinds for (un)pressed key
         auto range{keybinds.equal_range(key)};
         for(auto it = range.first; it != range.second; ++it){
-            const Keybind& keybind{it->second};
+            const Keybind& keybind{it->second}; // Alias
 
             if(!down || shiftDown == keybind.shift || !keybind.strict){
                 checkState(down, keybind, key);
@@ -192,13 +192,13 @@ class Keyboard{
                 if(wparam == WM_KEYDOWN || wparam == WM_SYSKEYDOWN){
                     std::cout << "Key " << vkCode << " pressed with caps down\n";
                     if(count){
-                        return checkCombo(vkCode, true);
+                        return checkCombo(vkCode, true) ? 1 : CallNextHookEx(NULL, ncode, wparam, lparam);
                     }
                 }
                 else if(wparam == WM_KEYUP || wparam == WM_SYSKEYUP){
                     std::cout << "Key " << vkCode << " unpressed with caps down\n";
                     if(count){
-                        return checkCombo(vkCode, false);
+                        return checkCombo(vkCode, false) ? 1 : CallNextHookEx(NULL, ncode, wparam, lparam);
                     }
                 }
             }
@@ -274,7 +274,7 @@ int main(){
     hook.addKeybind('S', VK_MEDIA_NEXT_TRACK, true); // Media Next
     hook.addKeybind('F', VK_MEDIA_PLAY_PAUSE, true); // Media Play/Pause
     hook.addKeybind('Q', VK_VOLUME_MUTE, true); // Volume Mute
-    hook.addKeybind(VK_ESCAPE, {VK_LSHIFT, VK_OEM_3}, true); // Tilde ~ | VK_OEM_3 = Tilde/Grave key
+    hook.addKeybind(VK_ESCAPE, VK_OEM_3, true); // Tilde ~ | VK_OEM_3 = Tilde/Grave key
     
     /*
     ; right cluster
@@ -293,8 +293,8 @@ int main(){
     hook.addKeybind('N', VK_LEFT, false, false); // Left
     hook.addKeybind('E', VK_DOWN, false, false); // Down
     hook.addKeybind('I', VK_RIGHT, false, false); // Right
-    hook.addKeybind('L', VK_HOME); // Home
-    hook.addKeybind('Y', VK_END); // End
+    hook.addKeybind('L', VK_HOME, false, false); // Home
+    hook.addKeybind('Y', VK_END, false, false); // End
     hook.addKeybind(VK_OEM_1, VK_PRIOR); // Page Up | VK_OEM_1 = Semicolon/Colon key
     hook.addKeybind('O', VK_NEXT); // Page Down
     hook.addKeybind(VK_OEM_7, VK_INSERT); // Insert | VK_OEM_7 = Apostrophe/Double Quotation Mark key
@@ -314,7 +314,8 @@ int main(){
     hook.addKeybind('R', VK_DOWN); // Down
     hook.addKeybind('S', VK_RIGHT); // Right
     hook.addKeybind('F', VK_RETURN); // Enter
-    hook.addKeybind('Q', VK_END);
+    hook.addKeybind('Q', VK_END, false, false); // End
+    hook.addKeybind('T', VK_HOME, false, false); // Home
 
     /*
     ; function keys
