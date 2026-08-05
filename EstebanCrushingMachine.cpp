@@ -60,8 +60,10 @@ class Keyboard{
         for(DWORD key : keys){
             INPUT input;
             input.type = INPUT_KEYBOARD;
-            input.ki.wVk = static_cast<WORD>(key);
+            //input.ki.wVk = static_cast<WORD>(key);
             input.ki.dwFlags = down ? 0 : KEYEVENTF_KEYUP;
+            input.ki.dwFlags |= KEYEVENTF_SCANCODE;
+            input.ki.wScan = static_cast<WORD>(MapVirtualKey(key, MAPVK_VK_TO_VSC));
             switch(key){
                 case VK_UP:
                 case VK_LEFT:
@@ -72,6 +74,7 @@ class Keyboard{
                 case VK_PRIOR:
                 case VK_NEXT:
                     input.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+                    input.ki.wScan = static_cast<WORD>(MapVirtualKey(key, MAPVK_VK_TO_VSC_EX));
             }
             inputs.push_back(input);
         }
