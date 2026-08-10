@@ -73,6 +73,7 @@ class Keyboard{
                 case VK_END:
                 case VK_PRIOR:
                 case VK_NEXT:
+                case VK_DELETE:
                 case VK_MEDIA_PLAY_PAUSE:
                 case VK_MEDIA_NEXT_TRACK:
                 case VK_MEDIA_PREV_TRACK:
