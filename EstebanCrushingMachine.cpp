@@ -362,9 +362,11 @@ int main(){
         return
     
     Backspace::Del
+    Menu/Apps::Caps
     */
     hook.addKeybind(VK_ESCAPE, VK_OEM_3); // Grave or backtick ` | VK_OEM_3 = Tilde/Grave key
     hook.addKeybind(VK_BACK, VK_DELETE); // Delete
+    hook.addKeybind(VK_APPS, VK_CAPITAL); // Caps
 
 
     if (!hook.checkHook()) return 1; // Exit abnormally on failure to hook keyboard
