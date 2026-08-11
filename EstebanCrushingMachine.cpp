@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include <vector>
 #include <algorithm>
+#include <unordered_set>
 
 // Print windows-based errors if needed
 void displayError(DWORD dw){
@@ -172,6 +173,9 @@ class Keyboard{
         return the value returned by CallNextHookEx. */
         if(ncode >= 0 && ((wparam == WM_KEYDOWN || wparam == WM_SYSKEYDOWN) || (wparam == WM_KEYUP || wparam == WM_SYSKEYUP))){
 
+            // Tracking keys pressed before caps to ignore keybinds
+            static std::unordered_set<DWORD> beforeCaps{};
+
             /* Microsoft documentation says the given LPARAM is a pointer to
             a KBDLLHOOKSTRUCT so we cast it to one */
             KBDLLHOOKSTRUCT* input { (KBDLLHOOKSTRUCT*)lparam };
@@ -201,26 +205,35 @@ class Keyboard{
 
                 if(wparam == WM_KEYDOWN || wparam == WM_SYSKEYDOWN){
                     std::cout << "Key " << vkCode << " pressed with caps down\n";
-                    if(count){
+                    if(count && !beforeCaps.count(vkCode)){
                         return checkCombo(vkCode, true) ? 1 : CallNextHookEx(NULL, ncode, wparam, lparam);
                     }
                 }
                 else if(wparam == WM_KEYUP || wparam == WM_SYSKEYUP){
                     std::cout << "Key " << vkCode << " unpressed with caps down\n";
-                    if(count){
+
+                    if(count && !beforeCaps.count(vkCode)){
                         return checkCombo(vkCode, false) ? 1 : CallNextHookEx(NULL, ncode, wparam, lparam);
                     }
+                    beforeCaps.erase(vkCode);
                 }
             }
 
             // Unpress keybind without caps logic
-            if((wparam == WM_KEYUP || wparam == WM_SYSKEYUP) && simulatedKeys.count(vkCode)){
-                unpressSimulatedKeys(input->vkCode);
-                return 1;
+            if(wparam == WM_KEYUP || wparam == WM_SYSKEYUP){
+                if(simulatedKeys.count(vkCode)){
+                    unpressSimulatedKeys(input->vkCode);
+                    return 1;
+                }
+
+                beforeCaps.erase(vkCode);
             }
-            if((wparam == WM_KEYDOWN || wparam == WM_SYSKEYDOWN) && simulatedKeys.count(vkCode)){
-                
-                return 1;
+            if(wparam == WM_KEYDOWN || wparam == WM_SYSKEYDOWN){
+                if(simulatedKeys.count(vkCode)){
+                    return 1;
+                }
+
+                beforeCaps.insert(vkCode);
             }
         }
 
